@@ -8,6 +8,9 @@ Pasos:
 Si nada aparece -> sin_web. Si algo podría ser su web -> posible_web (revísalo tú).
 """
 import re
+import socket
+import threading
+import time
 from urllib.parse import urlparse
 
 import requests
@@ -62,15 +65,46 @@ def coincide_nombre(nombre: str, url: str, titulo: str = "") -> bool:
     return bool(titulo_n) and all(t in titulo_n for t in tokens)
 
 
-def responde(url: str, session: requests.Session, timeout: float = 8) -> tuple[bool, str]:
-    """Devuelve (responde, html)."""
+def existe_dominio(host: str) -> bool:
+    try:
+        socket.getaddrinfo(host, 443)
+        return True
+    except (socket.gaierror, UnicodeError, OSError):
+        return False
+
+
+def responde(url: str, session: requests.Session, timeout: float = 6) -> tuple[bool, str]:
+    """Devuelve (responde, html). Lee como mucho 200 KB para no quedarse colgado."""
     if "://" not in url:
         url = "https://" + url
     try:
-        r = session.get(url, timeout=timeout, headers=UA, allow_redirects=True)
-        return r.status_code < 400, r.text[:200_000] if r.status_code < 400 else ""
+        with session.get(url, timeout=(4, timeout), headers=UA, allow_redirects=True, stream=True) as r:
+            if r.status_code >= 400:
+                return False, ""
+            datos = b""
+            for trozo in r.iter_content(16_384):
+                datos += trozo
+                if len(datos) > 200_000:
+                    break
+            return True, datos.decode(r.encoding or "utf-8", errors="ignore")
     except requests.RequestException:
         return False, ""
+
+
+class _Ritmo:
+    """Asegura una pausa mínima entre llamadas (Brave gratis: 1 consulta/segundo)."""
+    def __init__(self, segundos: float):
+        self.segundos, self.lock, self.ultimo = segundos, threading.Lock(), 0.0
+
+    def esperar(self) -> None:
+        with self.lock:
+            pausa = self.ultimo + self.segundos - time.monotonic()
+            if pausa > 0:
+                time.sleep(pausa)
+            self.ultimo = time.monotonic()
+
+
+_ritmo_brave = _Ritmo(1.1)
 
 
 def _titulo(html: str) -> str:
@@ -79,8 +113,9 @@ def _titulo(html: str) -> str:
 
 
 def buscar_en_web(nombre: str, ciudad: str, brave_key: str, session: requests.Session) -> list[dict]:
+    _ritmo_brave.esperar()
     r = session.get(BRAVE_URL, params={"q": f'"{nombre}" {ciudad}', "country": "ES", "count": 10},
-                    headers={"X-Subscription-Token": brave_key, "Accept": "application/json"}, timeout=15)
+                    headers={"X-Subscription-Token": brave_key, "Accept": "application/json"}, timeout=(5, 15))
     r.raise_for_status()
     return r.json().get("web", {}).get("results", [])
 
@@ -122,6 +157,8 @@ def verificar(n: dict, session: requests.Session | None = None, brave_key: str =
     # 3) Dominios típicos
     if probar_dominios and (base := slug(n["nombre"])) and len(base) >= 5:
         for tld in (".es", ".com"):
+            if not existe_dominio(base + tld):
+                continue  # el dominio no existe: descartado al instante, sin esperar a la web
             ok, html = responde(base + tld, s, timeout=5)
             if ok and coincide_nombre(n["nombre"], base + tld, _titulo(html)) \
                     and any(t in slug(html) for t in tokens_distintivos(n["nombre"])):

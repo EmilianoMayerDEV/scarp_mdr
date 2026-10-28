@@ -5,7 +5,12 @@ Gratis y sin clave. Respeta las políticas de uso: identificarse con User-Agent 
 import requests
 
 NOMINATIM = "https://nominatim.openstreetmap.org/search"
-OVERPASS = "https://overpass-api.de/api/interpreter"
+# Servidores públicos de Overpass: si uno está saturado se prueba el siguiente
+OVERPASS = [
+    "https://overpass-api.de/api/interpreter",
+    "https://overpass.kumi.systems/api/interpreter",
+    "https://overpass.private.coffee/api/interpreter",
+]
 USER_AGENT = "MayerDigital-BuscadorClientes/1.0 (+https://mayerdigital.website)"
 
 # Sector (como lo escribes en el panel) -> etiquetas de OpenStreetMap
@@ -48,25 +53,40 @@ def sector_soportado(sector: str) -> bool:
     return sector.strip().lower() in SECTORES
 
 
-def buscar(sector: str, ciudad: str, max_resultados: int = 200,
-           session: requests.Session | None = None) -> list[dict]:
+def buscar(sector: str, ciudad: str, max_resultados: int = 150,
+           session: requests.Session | None = None, log=print) -> list[dict]:
     etiquetas = SECTORES.get(sector.strip().lower())
     if not etiquetas:
         raise ErrorOSM(f"El sector «{sector}» no está en la lista de OpenStreetMap "
                        f"(edita SECTORES en buscador/fuentes/osm.py para añadirlo).")
     s = session or requests.Session()
     s.headers["User-Agent"] = USER_AGENT
+    log(f"OpenStreetMap: buscando la ciudad «{ciudad}»…")
     area = _area_ciudad(ciudad, s)
     filtros = "".join(f'nwr[{e.split("=")[0]}="{e.split("=")[1]}"][name](area.a);' for e in etiquetas)
-    consulta = f"[out:json][timeout:90];area({area})->.a;({filtros});out center tags {max_resultados};"
-    r = s.post(OVERPASS, data={"data": consulta}, timeout=120)
-    if r.status_code != 200:
-        raise ErrorOSM(f"Overpass respondió {r.status_code}. Prueba de nuevo en un minuto.")
-    return [_normalizar(el) for el in r.json().get("elements", [])]
+    consulta = f"[out:json][timeout:50];area({area})->.a;({filtros});out center tags {max_resultados};"
+    errores = []
+    for servidor in OVERPASS:
+        nombre = servidor.split("/")[2]
+        log(f"OpenStreetMap: consultando {nombre}…")
+        try:
+            r = s.post(servidor, data={"data": consulta}, timeout=(10, 60))
+        except requests.RequestException as e:
+            errores.append(f"{nombre}: {type(e).__name__}")
+            continue
+        if r.status_code == 200:
+            try:
+                return [_normalizar(el) for el in r.json().get("elements", [])]
+            except ValueError:
+                errores.append(f"{nombre}: respuesta no válida")
+                continue
+        errores.append(f"{nombre}: HTTP {r.status_code}")
+    raise ErrorOSM("Los servidores de OpenStreetMap no respondieron (" + "; ".join(errores) +
+                   "). Suelen estar saturados a ratos: prueba de nuevo en unos minutos.")
 
 
 def _area_ciudad(ciudad: str, s: requests.Session) -> int:
-    r = s.get(NOMINATIM, params={"q": ciudad, "format": "json", "limit": 5, "countrycodes": "es"}, timeout=20)
+    r = s.get(NOMINATIM, params={"q": ciudad, "format": "json", "limit": 5, "countrycodes": "es"}, timeout=(10, 20))
     r.raise_for_status()
     for lugar in r.json():
         if lugar.get("osm_type") == "relation":

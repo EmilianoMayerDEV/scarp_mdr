@@ -58,7 +58,9 @@ def test_no_propios_y_coincidencia():
     assert not coincide_nombre("Peluquería Lola", "https://peluqueriasmadrid.com")
 
 
-def test_verificar_casos():
+def test_verificar_casos(monkeypatch):
+    import buscador.verificador as v
+    monkeypatch.setattr(v, "existe_dominio", lambda host: host == "peluquerialola.com")
     s = SesionFalsa({"peluquerialola.es": Resp(200, text="<title>Peluquería Lola</title>")})
     n = {"nombre": "Peluquería Lola", "web_ficha": "https://peluquerialola.es", "redes": []}
     assert verificar(n, session=s)["estado_web"] == "tiene_web"
@@ -95,3 +97,22 @@ def test_mensajes(cfg):
     caida = mensajes.preparar({**n, "email": None, "estado_web": "web_caida"}, cfg)
     assert "no carga" in caida["texto"] and caida["canal"] == "whatsapp"
     assert mensajes.canal_para({"telefono": "+34912345678"}) == "llamar"
+
+
+def test_dominio_inexistente_no_hace_peticion(monkeypatch):
+    import buscador.verificador as v
+    monkeypatch.setattr(v, "existe_dominio", lambda host: False)
+    s = SesionFalsa({})
+    assert verificar({"nombre": "Peluquería Lola", "redes": []}, session=s)["estado_web"] == "sin_web"
+    assert s.llamadas == []
+
+
+def test_osm_prueba_otro_servidor_si_falla():
+    nominatim = Resp(json_data=[{"osm_type": "relation", "osm_id": 5326784}])
+    s = SesionFalsa({"nominatim": nominatim,
+                     "overpass-api.de": Resp(504),
+                     "kumi.systems": Resp(json_data={"elements": [
+                         {"type": "node", "id": 1, "lat": 40.4, "lon": -3.7, "tags": {"name": "Bar Pepe"}}]})})
+    r = osm.buscar("bares", "Madrid", session=s, log=lambda m: None)
+    assert [n["nombre"] for n in r] == ["Bar Pepe"]
+    assert "area(3605326784)" in s.llamadas[1][1]["data"]["data"]

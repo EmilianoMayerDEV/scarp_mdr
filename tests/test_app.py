@@ -10,14 +10,15 @@ from buscador.fuentes import osm
 @pytest.fixture
 def cliente(cfg, monkeypatch):
     db = DB(cfg.ruta_db)
-    monkeypatch.setattr(osm, "buscar", lambda sector, ciudad, session=None: [
+    monkeypatch.setattr(osm, "buscar", lambda sector, ciudad, session=None, log=print: [
         {"nombre": "Bar Pepe", "telefono": "612345678", "email": None, "web": None, "fuente": "osm",
          "lat": 40.4, "lon": -3.7, "redes": [], "maps_url": "https://osm.org/node/1"},
         {"nombre": "Café Luna", "telefono": "912345678", "email": "luna@gmail.com", "web": None, "fuente": "osm",
          "lat": 40.41, "lon": -3.71, "redes": []},
     ])
     import buscador.verificador as v
-    monkeypatch.setattr(v, "responde", lambda url, session, timeout=8: (False, ""))
+    monkeypatch.setattr(v, "responde", lambda url, session, timeout=6: (False, ""))
+    monkeypatch.setattr(v, "existe_dominio", lambda host: False)
     app = crear_app(cfg, db)
     return app.test_client(), db
 
@@ -81,3 +82,19 @@ def test_validaciones(cliente):
     c, _ = cliente
     assert c.post("/api/buscar", json={"sector": "", "ciudad": "Madrid", "fuentes": ["osm"]}).status_code == 400
     assert c.get("/api/negocio/nada/mensaje").status_code == 404
+
+
+def test_cancelar(cliente, monkeypatch):
+    import buscador.verificador as v
+    c, db = cliente
+
+    def lento(n, session=None, brave_key=""):
+        time.sleep(0.3)
+        return {"estado_web": "sin_web", "evidencia_web": "", "redes": []}
+    monkeypatch.setattr(v, "verificar", lento)
+    c.post("/api/buscar", json={"sector": "bares", "ciudad": "Madrid", "fuentes": ["osm"]})
+    time.sleep(0.05)
+    assert c.get("/api/trabajo").get_json()["activo"]
+    c.post("/api/cancelar", json={})
+    _esperar(c)
+    assert any("Cancelado" in m for m in c.get("/api/trabajo").get_json()["mensajes"])

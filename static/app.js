@@ -28,18 +28,33 @@ $("#verificar-pendientes")?.addEventListener("click", async (e) => {
 function seguirTrabajo() {
   const caja = $("#progreso");
   caja.hidden = false;
-  form.querySelector("button").disabled = true;
+  form.querySelector("button[type=submit]").disabled = true;
   const tic = async () => {
-    const t = await api("/api/trabajo");
-    $(".fase", caja).textContent = t.fase || "Terminado";
+    let t;
+    try { t = await api("/api/trabajo"); }
+    catch { $(".fase", caja).textContent = "Sin conexión con el panel: ¿cerraste la ventana negra?"; return; }
+    let fase = t.fase || "Terminado";
+    if (t.total) fase += ` ${t.hechos}/${t.total}`;
+    $(".fase", caja).textContent = fase;
+    $(".tiempo", caja).textContent = t.activo ? `${t.segundos}s` : "";
+    $("#cancelar").hidden = !t.activo;
     $(".barra-progreso span", caja).style.width = t.total ? `${(100 * t.hechos) / t.total}%` : (t.activo ? "8%" : "100%");
-    if (t.total) $(".fase", caja).textContent += ` ${t.hechos}/${t.total}`;
     $(".log", caja).innerHTML = t.mensajes.map((m) => `<li>${m.replace(/</g, "&lt;")}</li>`).join("");
     if (t.activo) setTimeout(tic, 1000);
-    else setTimeout(() => location.reload(), 1200);
+    else {
+      form.querySelector("button[type=submit]").disabled = false;
+      // Si hubo errores, se dejan a la vista; si no, se recarga para ver los resultados
+      const huboError = t.mensajes.some((m) => /no respondieron|Error|falta|HTTP|Cancelado/.test(m));
+      if (!huboError) setTimeout(() => location.reload(), 1200);
+      else $(".log", caja).insertAdjacentHTML("beforeend", '<li><a href="">Recargar para ver resultados</a></li>');
+    }
   };
   tic();
 }
+$("#cancelar")?.addEventListener("click", async () => {
+  $("#cancelar").disabled = true;
+  await api("/api/cancelar", {}).catch(() => {});
+});
 if (window.TRABAJO_ACTIVO) seguirTrabajo();
 
 // ---------- estado y acciones por fila ----------

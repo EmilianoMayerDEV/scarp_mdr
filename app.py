@@ -69,6 +69,11 @@ def crear_app(cfg=None, db=None) -> Flask:
             return jsonify(error="Ya hay una búsqueda en marcha."), 409
         return jsonify(ok=True)
 
+    @app.post("/api/cancelar")
+    def cancelar():
+        trabajo.pedir_cancelar()
+        return jsonify(ok=True)
+
     @app.get("/api/trabajo")
     def estado_trabajo():
         return jsonify(trabajo.estado())

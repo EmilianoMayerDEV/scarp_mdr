@@ -28,6 +28,7 @@ legend{font-family:var(--mono);font-size:12px;color:var(--muted);padding:0 4px}
 .aviso-config{margin:12px 0 0;color:var(--dim);font-size:12px;display:flex;flex-direction:column;gap:2px}
 .aviso-config:empty{display:none}
 .progreso{margin-top:14px;font-family:var(--mono);font-size:12px}
+.fila-fase{display:flex;align-items:center;gap:12px}.fila-fase .tiempo{color:var(--dim)}.fila-fase .btn{margin-left:auto;padding:4px 9px}
 .barra-progreso{height:4px;background:var(--line);border-radius:2px;margin:8px 0;overflow:hidden}
 .barra-progreso span{display:block;height:100%;width:0;background:var(--lime);transition:width .3s}
 .log{margin:0;padding-left:16px;color:var(--muted)}

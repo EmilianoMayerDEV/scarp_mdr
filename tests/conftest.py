@@ -12,8 +12,19 @@ class Resp:
     def __init__(self, status=200, json_data=None, text=""):
         self.status_code, self._json, self.text = status, json_data, text
 
+    encoding = "utf-8"
+
     def json(self):
         return self._json
+
+    def iter_content(self, n):
+        yield self.text.encode()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
 
     def raise_for_status(self):
         if self.status_code >= 400:
