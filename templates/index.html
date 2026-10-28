@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Buscador de clientes · Mayer Digital</title>
+  <link rel="icon" href="{{ url_for('static', filename='icono.svg') }}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='estilo.css') }}">
+</head>
+<body>
+<header class="barra">
+  <div class="marca"><img src="{{ url_for('static', filename='icono.svg') }}" alt=""> buscador<b>clientes</b></div>
+  <div class="contador {% if envios_hoy >= cfg.limite_diario %}lleno{% endif %}" title="Mensajes enviados hoy / límite diario">
+    hoy <b>{{ envios_hoy }}</b>/{{ cfg.limite_diario }}
+  </div>
+</header>
+
+<main>
+  <section class="panel">
+    <form id="form-buscar" class="buscar">
+      <label>Sector
+        <input name="sector" list="lista-sectores" placeholder="peluquerías" required>
+        <datalist id="lista-sectores">{% for s in sectores %}<option value="{{ s }}">{% endfor %}</datalist>
+      </label>
+      <label>Ciudad
+        <input name="ciudad" placeholder="Madrid" required>
+      </label>
+      <fieldset>
+        <legend>Fuentes</legend>
+        <label class="check"><input type="checkbox" name="fuentes" value="google" {% if cfg.google_key %}checked{% else %}disabled{% endif %}> Google{% if not cfg.google_key %} <small>(falta clave)</small>{% endif %}</label>
+        <label class="check"><input type="checkbox" name="fuentes" value="osm" checked> OpenStreetMap</label>
+      </fieldset>
+      <button class="btn primario" type="submit">Buscar negocios</button>
+    </form>
+    <div id="progreso" class="progreso" hidden>
+      <div class="fase"></div>
+      <div class="barra-progreso"><span></span></div>
+      <ul class="log"></ul>
+    </div>
+    <p class="aviso-config">
+      {% if not cfg.brave_key %}<span>· Sin <code>BRAVE_API_KEY</code>: la verificación usa la ficha y prueba dominios, pero no busca en internet.</span>{% endif %}
+      {% if not cfg.smtp_configurado %}<span>· Sin SMTP: los correos se abrirán en tu programa de correo en vez de enviarse desde aquí.</span>{% endif %}
+    </p>
+  </section>
+
+  <nav class="pestanas">
+    {% for clave, titulo in vistas.items() %}
+      <a href="?vista={{ clave }}" class="{% if vista == clave %}activa{% endif %}">{{ titulo }} <span>{{ resumen.get(clave, 0) }}</span></a>
+    {% endfor %}
+    {% if resumen.get('pendiente') %}<a href="#" id="verificar-pendientes" class="pendientes">Verificar {{ resumen.pendiente }} pendientes</a>{% endif %}
+    <a href="{{ url_for('exportar') }}" class="exportar">Exportar CSV</a>
+  </nav>
+
+  <form class="filtros" method="get">
+    <input type="hidden" name="vista" value="{{ vista }}">
+    <select name="sector" onchange="this.form.submit()"><option value="">Todos los sectores</option>{% for s in sectores_db %}<option {% if filtros.sector == s %}selected{% endif %}>{{ s }}</option>{% endfor %}</select>
+    <select name="ciudad" onchange="this.form.submit()"><option value="">Todas las ciudades</option>{% for c in ciudades_db %}<option {% if filtros.ciudad == c %}selected{% endif %}>{{ c }}</option>{% endfor %}</select>
+    {% if vista != 'seguimiento' %}
+    <select name="estado" onchange="this.form.submit()"><option value="">Cualquier estado</option>{% for e in estados %}<option {% if filtros.estado == e %}selected{% endif %}>{{ e }}</option>{% endfor %}</select>
+    {% endif %}
+  </form>
+
+  {% if not negocios %}
+    <p class="vacio">No hay negocios en esta vista. Haz una búsqueda arriba.</p>
+  {% else %}
+  <div class="tabla-wrap">
+  <table>
+    <thead><tr><th>Negocio</th><th>Contacto</th><th>Web</th><th>Estado</th><th></th></tr></thead>
+    <tbody>
+    {% for n in negocios %}
+      <tr data-id="{{ n.id }}" class="estado-{{ n.estado }}">
+        <td>
+          <div class="nombre">{{ n.nombre }}</div>
+          <div class="sub">{{ n.direccion or n.ciudad or '' }}</div>
+          <div class="sub">
+            {% if n.rating %}★ {{ '%.1f'|format(n.rating) }} ({{ n.num_resenas or 0 }}) · {% endif %}
+            {% if n.maps_url %}<a href="{{ n.maps_url }}" target="_blank" rel="noopener">mapa</a>{% endif %}
+            {% for r in n.redes %} · <a href="{{ r if '://' in r else 'https://' ~ r }}" target="_blank" rel="noopener">{{ 'instagram' if 'instagram' in r else ('facebook' if 'facebook' in r else 'red') }}</a>{% endfor %}
+            <span class="fuente">{{ n.fuentes }}</span>
+          </div>
+        </td>
+        <td class="contacto">
+          {% if n.email %}<div>✉ {{ n.email }}</div>{% endif %}
+          {% if n.telefono %}<div>{{ '📱' if 'whatsapp' in n.canales else '☎' }} {{ n.telefono_bonito }}</div>{% endif %}
+          {% if not n.email and not n.telefono %}<div class="sub">sin datos</div>{% endif %}
+        </td>
+        <td>
+          <span class="chip web-{{ n.estado_web }}">{{ n.estado_web|replace('_', ' ') }}</span>
+          <div class="sub evidencia">{{ n.evidencia_web or '' }}</div>
+        </td>
+        <td>
+          <select class="sel-estado">{% for e in estados %}<option {% if n.estado == e %}selected{% endif %}>{{ e }}</option>{% endfor %}</select>
+          {% if n.contactado_en %}<div class="sub">{{ n.canal }} · {{ n.contactado_en[:10] }}</div>{% endif %}
+        </td>
+        <td class="acciones">
+          {% if n.estado == 'no_contactar' %}
+            <span class="sub">no contactar</span>
+          {% elif vista == 'seguimiento' %}
+            <button class="btn" data-accion="mensaje" data-tipo="seguimiento">Seguimiento</button>
+          {% elif 'email' in n.canales or 'whatsapp' in n.canales %}
+            <button class="btn {% if n.estado == 'nuevo' %}primario{% endif %}" data-accion="mensaje" data-tipo="primero">{{ 'Preparar' if n.estado == 'nuevo' else 'Otro mensaje' }}</button>
+          {% elif 'llamar' in n.canales %}
+            <a class="btn" href="tel:{{ n.telefono }}">Llamar</a>
+          {% endif %}
+          <button class="btn mini" data-accion="reverificar" title="Volver a comprobar la web">↻</button>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% endif %}
+</main>
+
+<dialog id="modal">
+  <form method="dialog" class="modal">
+    <header><h2 id="m-nombre"></h2><button class="cerrar" value="cancel" aria-label="Cerrar">×</button></header>
+    <div class="canales" id="m-canales"></div>
+    <div class="destino" id="m-destino"></div>
+    <label id="m-asunto-wrap">Asunto <input id="m-asunto"></label>
+    <label>Mensaje (revísalo y personalízalo) <textarea id="m-texto" rows="14"></textarea></label>
+    <p class="error" id="m-error"></p>
+    <footer>
+      <button class="btn" value="cancel">Cancelar</button>
+      <button class="btn primario" id="m-enviar" type="button"></button>
+    </footer>
+  </form>
+</dialog>
+
+<script>window.TRABAJO_ACTIVO = {{ 'true' if trabajo.activo else 'false' }};</script>
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
