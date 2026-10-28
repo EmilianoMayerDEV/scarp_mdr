@@ -103,3 +103,15 @@ Los datos se guardan en `datos/negocios.db` (no se sube a GitHub).
 pip install pytest
 python -m pytest
 ```
+
+## Webs modelo por sector
+
+En `modelos/webs/` hay una web de ejemplo para cada uno de los 27 sectores del buscador (abre `modelos/webs/index.html`).
+Sirven para enseñar a cada negocio cómo se vería su página. Los negocios, teléfonos y reseñas son **ficticios**,
+y los recuadros de color marcan dónde irían las fotos reales del cliente.
+
+- Textos, precios y colores: `modelos/contenido.py`
+- Diseño: `modelos/generar.py`
+- Para regenerarlas tras un cambio: `python modelos/generar.py`
+
+Iconos: [Lucide](https://lucide.dev) (licencia ISC).
