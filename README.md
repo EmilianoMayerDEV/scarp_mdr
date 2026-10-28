@@ -29,8 +29,8 @@ O paso a paso:
 Necesitas **Python 3.10 o superior** ([python.org](https://www.python.org/downloads/); en Windows marca *Add Python to PATH*).
 
 ```bash
-git clone https://github.com/EmilianoMayerDEV/buscador-clientes.git
-cd buscador-clientes
+git clone https://github.com/EmilianoMayerDEV/scarp_mdr.git
+cd scarp_mdr
 python -m venv .venv
 ```
 
