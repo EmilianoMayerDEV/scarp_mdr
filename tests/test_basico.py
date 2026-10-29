@@ -116,3 +116,21 @@ def test_osm_prueba_otro_servidor_si_falla():
     r = osm.buscar("bares", "Madrid", session=s, log=lambda m: None)
     assert [n["nombre"] for n in r] == ["Bar Pepe"]
     assert "area(3605326784)" in s.llamadas[1][1]["data"]["data"]
+
+
+def test_enlace_modelo(cfg):
+    base = "https://mayerdigital.website/modelos"
+    assert mensajes.enlace_modelo("peluquerías", base) == base + "/peluquerias/"
+    assert mensajes.enlace_modelo("Peluqueria", base) == base + "/peluquerias/"
+    assert mensajes.enlace_modelo("barberías", base) == base + "/barberias/"
+    assert mensajes.enlace_modelo("bares", base) == base + "/bares/"
+    assert mensajes.enlace_modelo("talleres mecánicos", base) == base + "/talleres-mecanicos/"
+    assert mensajes.enlace_modelo("clínica dental", base) == base + "/dentistas/"
+    assert mensajes.enlace_modelo("tiendas de mascotas", base) == base + "/tiendas-de-mascotas/"
+    assert mensajes.enlace_modelo("joyerías", base) is None
+    assert mensajes.enlace_modelo("peluquerías", "") is None
+    n = {"nombre": "Bar Pepe", "ciudad": "Madrid", "sector": "bares", "telefono": "+34612345678", "redes": []}
+    texto = mensajes.preparar(n, cfg)["texto"]
+    assert "https://mayerdigital.website/modelos/bares/" in texto
+    sin = mensajes.preparar({**n, "sector": "joyerías"}, cfg)["texto"]
+    assert "modelos" not in sin and "\n\n\n" not in sin

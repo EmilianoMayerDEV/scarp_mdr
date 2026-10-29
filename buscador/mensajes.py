@@ -1,8 +1,37 @@
 """Plantillas de mensajes. Edítalas aquí para cambiar el texto que se propone en el panel.
 
-Variables disponibles: {nombre} {ciudad} {sector} {detalle} {problema} {firma} {firma_corta}
+Variables disponibles: {nombre} {ciudad} {sector} {detalle} {problema} {ejemplo} {firma} {firma_corta}
 """
 from . import telefonos
+from .texto import sin_acentos
+
+# Web modelo publicada para cada sector: https://mayerdigital.website/modelos/<slug>/
+MODELOS = {
+    "peluquer": "peluquerias", "barber": "barberias", "estetica": "centros-de-estetica", "restaurante": "restaurantes",
+    "cafeter": "cafeterias", "bar": "bares", "pub": "bares", "taberna": "bares", "panader": "panaderias",
+    "pasteler": "panaderias", "carnicer": "carnicerias", "fruter": "fruterias", "florister": "floristerias",
+    "taller": "talleres-mecanicos", "mecanic": "talleres-mecanicos", "dentist": "dentistas", "dental": "dentistas",
+    "fisio": "fisioterapeutas", "veterinar": "veterinarios", "gimnasio": "gimnasios", "crossfit": "gimnasios",
+    "ropa": "tiendas-de-ropa", "moda": "tiendas-de-ropa", "zapater": "zapaterias", "calzado": "zapaterias",
+    "ferreter": "ferreterias", "optica": "opticas", "inmobiliar": "inmobiliarias", "abogad": "abogados",
+    "gestor": "gestorias", "asesor": "gestorias", "fontaner": "fontaneros", "electricist": "electricistas",
+    "academia": "academias", "mascota": "tiendas-de-mascotas", "lavander": "lavanderias", "tintorer": "lavanderias",
+}
+
+
+def enlace_modelo(sector: str | None, base: str) -> str | None:
+    """Busca la web modelo que corresponde al sector escrito en el buscador (admite singular, plural, sin tildes)."""
+    if not sector or not base:
+        return None
+    palabras = sin_acentos(sector.lower()).replace("-", " ").split()
+    for clave, slug in MODELOS.items():
+        # "bar" debe coincidir con la palabra exacta "bar(es)", no con "barberías"
+        if clave == "bar":
+            if any(p in ("bar", "bares") for p in palabras):
+                return f"{base.rstrip('/')}/{slug}/"
+        elif any(p.startswith(clave) for p in palabras):
+            return f"{base.rstrip('/')}/{slug}/"
+    return None
 
 ASUNTO_EMAIL = "Una idea para {nombre}"
 
@@ -14,7 +43,7 @@ Hoy muchos clientes buscan en Google antes de visitar o llamar, y sin web es fá
 
 Me dedico a crear páginas web sencillas y profesionales para negocios como el vuestro: con vuestros servicios, ubicación, botón de WhatsApp y diseño adaptado al móvil. Me encargo de todo, sin que tengáis que saber nada técnico.
 
-¿Os interesaría que os prepare una propuesta sin compromiso?
+{ejemplo}¿Os interesaría que os prepare una propuesta sin compromiso?
 
 Un saludo,
 {firma}
@@ -27,7 +56,7 @@ Encontré {nombre} buscando {sector} en {ciudad}{detalle}, {problema}.
 
 Hago webs sencillas para negocios como el vuestro (servicios, ubicación, botón de WhatsApp, adaptada al móvil) y me encargo de todo.
 
-¿Os paso una propuesta sin compromiso? Si no os interesa, decídmelo y no vuelvo a escribir 🙂"""
+{ejemplo}¿Os paso una propuesta sin compromiso? Si no os interesa, decídmelo y no vuelvo a escribir 🙂"""
 
 ASUNTO_SEGUIMIENTO = "Re: Una idea para {nombre}"
 
@@ -55,7 +84,10 @@ def _contexto(n: dict, cfg) -> dict:
     detalle = _detalle(n)
     problema = ("pero la web que aparece en vuestra ficha no carga" if n.get("estado_web") == "web_caida"
                 else "pero no encontré una página web propia")
-    return {"nombre": n["nombre"], "ciudad": n.get("ciudad") or "tu zona",
+    enlace = enlace_modelo(n.get("sector"), getattr(cfg, "modelos_url", ""))
+    ejemplo = (f"Para que os hagáis una idea, aquí tenéis un ejemplo de cómo podría quedar: {enlace}\n\n"
+               if enlace else "")
+    return {"ejemplo": ejemplo, "nombre": n["nombre"], "ciudad": n.get("ciudad") or "tu zona",
             "sector": (n.get("sector") or "negocios").lower(), "detalle": detalle, "problema": problema,
             "firma": firma, "firma_corta": corta}
 

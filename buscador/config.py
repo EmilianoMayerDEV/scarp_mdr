@@ -33,6 +33,7 @@ class Config:
     limite_diario: int
     dias_seguimiento: int
     ruta_db: Path
+    modelos_url: str = "https://mayerdigital.website/modelos"
 
     @property
     def smtp_configurado(self) -> bool:
@@ -57,4 +58,5 @@ def cargar_config() -> Config:
         limite_diario=int(e("LIMITE_DIARIO", "15") or 15),
         dias_seguimiento=int(e("DIAS_SEGUIMIENTO", "5") or 5),
         ruta_db=Path(e("RUTA_DB", str(RAIZ / "datos" / "negocios.db"))),
+        modelos_url=e("MODELOS_URL", "https://mayerdigital.website/modelos"),
     )

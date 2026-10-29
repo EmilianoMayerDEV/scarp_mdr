@@ -1,4 +1,11 @@
-"""Genera una web modelo por cada sector en modelos/webs/.  Uso:  python modelos/generar.py"""
+"""Genera una web modelo por cada sector.
+
+Uso:
+  python modelos/generar.py                      -> modelos/webs/<sector>.html (para abrir en tu ordenador)
+  python modelos/generar.py --publicar CARPETA   -> CARPETA/<sector>/index.html (para subir a tu web:
+                                                    mayerdigital.website/modelos/<sector>/)
+"""
+import argparse
 import html
 import json
 from pathlib import Path
@@ -165,6 +172,7 @@ def pagina(s: dict) -> str:
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{e(s["nombre"])} · {e(TIPO[s["slug"]])} en {e(s["barrio"])}</title>
 <meta name="description" content="{e(s["sub"])}">
+<meta name="robots" content="noindex">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="{fuentes(est)}" rel="stylesheet">
 <style>:root{{{variables}}}{CSS}</style>
@@ -252,17 +260,18 @@ def pagina(s: dict) -> str:
 """
 
 
-def indice() -> str:
+def indice(carpetas: bool = False) -> str:
     tarjetas = []
     for s in SECTORES:
         est = ESTILOS[s["estilo"]]
         acc = s.get("acento") or est["accent"]
         tarjetas.append(
-            f'<a class="t" href="{s["slug"]}.html"><span class="m" style="background:{acc};color:{s.get("acento_ink") or est["accent_ink"]}">'
+            f'<a class="t" href="{s["slug"] + "/" if carpetas else s["slug"] + ".html"}"><span class="m" style="background:{acc};color:{s.get("acento_ink") or est["accent_ink"]}">'
             f'{ico(s["icono"], 26)}</span><b>{e(s["sector"])}</b><small>{e(s["nombre"])}</small></a>')
     return f"""<!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Webs modelo · Mayer Digital</title>
+<meta name="robots" content="noindex">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
 body{{margin:0;background:#0c0e10;color:#e6e9ec;font-family:"IBM Plex Sans",system-ui,sans-serif}}
@@ -282,8 +291,19 @@ p{{color:#8a949e;margin:0 0 36px;font-size:18px}}
 
 
 if __name__ == "__main__":
-    SALIDA.mkdir(exist_ok=True)
-    for s in SECTORES:
-        (SALIDA / f"{s['slug']}.html").write_text(pagina(s), encoding="utf-8")
-    (SALIDA / "index.html").write_text(indice(), encoding="utf-8")
-    print(f"{len(SECTORES)} webs generadas en {SALIDA}")
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--publicar", metavar="CARPETA", help="genera carpetas <sector>/index.html para publicar")
+    args = ap.parse_args()
+    if args.publicar:
+        destino = Path(args.publicar)
+        for s in SECTORES:
+            (destino / s["slug"]).mkdir(parents=True, exist_ok=True)
+            (destino / s["slug"] / "index.html").write_text(pagina(s), encoding="utf-8")
+        (destino / "index.html").write_text(indice(carpetas=True), encoding="utf-8")
+    else:
+        destino = SALIDA
+        destino.mkdir(exist_ok=True)
+        for s in SECTORES:
+            (destino / f"{s['slug']}.html").write_text(pagina(s), encoding="utf-8")
+        (destino / "index.html").write_text(indice(), encoding="utf-8")
+    print(f"{len(SECTORES)} webs generadas en {destino}")

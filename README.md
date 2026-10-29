@@ -114,4 +114,14 @@ y los recuadros de color marcan dónde irían las fotos reales del cliente.
 - Diseño: `modelos/generar.py`
 - Para regenerarlas tras un cambio: `python modelos/generar.py`
 
+Están publicadas en **https://mayerdigital.website/modelos/** (una carpeta por sector, p. ej. `/modelos/peluquerias/`),
+y el buscador añade automáticamente el enlace del sector en cada mensaje (`MODELOS_URL` en el `.env`; vacío = sin enlace).
+Para actualizar las publicadas tras editar el contenido:
+
+```bash
+python modelos/generar.py --publicar ../mayerdigital-website/modelos
+```
+
+y sube los cambios del repo de la web. Llevan `noindex` para que Google no las muestre como negocios reales.
+
 Iconos: [Lucide](https://lucide.dev) (licencia ISC).
