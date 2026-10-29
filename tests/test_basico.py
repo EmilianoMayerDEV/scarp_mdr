@@ -134,3 +134,19 @@ def test_enlace_modelo(cfg):
     assert "https://mayerdigital.website/modelos/bares/" in texto
     sin = mensajes.preparar({**n, "sector": "joyerías"}, cfg)["texto"]
     assert "modelos" not in sin and "\n\n\n" not in sin
+
+
+def test_web_gratuita_blogspot(cfg):
+    n = {"nombre": "The Clover Irish Tavern", "ciudad": "Madrid", "sector": "bares", "telefono": "+34612345678",
+         "web_ficha": "https://theclovermirasierra.blogspot.com/p/donde-estamos.html", "redes": []}
+    r = verificar(n, session=SesionFalsa({}))
+    assert r["estado_web"] == "web_basica" and "Blogspot" in r["evidencia_web"]
+    m = mensajes.preparar({**n, **r}, cfg)
+    assert m["canal"] == "whatsapp"
+    t = m["texto"]
+    assert t.startswith("Buenos días.") and "Mi nombre es Emiliano Mayer, de Mayer Digital" in t
+    assert "está en Blogspot, una plataforma gratuita" in t
+    assert "https://mayerdigital.website/modelos/bares/" in t and "no volveré a escribirles" in t
+    assert "{" not in t
+    for tipo in ("sin_web", "web_caida"):
+        assert "{" not in mensajes.preparar({**n, "estado_web": tipo}, cfg)["texto"]

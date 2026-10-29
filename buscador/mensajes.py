@@ -1,8 +1,9 @@
 """Plantillas de mensajes. Edítalas aquí para cambiar el texto que se propone en el panel.
 
-Variables disponibles: {nombre} {ciudad} {sector} {detalle} {problema} {ejemplo} {firma} {firma_corta}
+Variables disponibles: {nombre} {ciudad} {sector} {detalle} {problema} {problema_formal} {ejemplo}
+{ejemplo_formal} {firma} {firma_corta} {firma_nombre} {firma_empresa} {firma_web}
 """
-from . import telefonos
+from . import telefonos, verificador
 from .texto import sin_acentos
 
 # Web modelo publicada para cada sector: https://mayerdigital.website/modelos/<slug>/
@@ -50,13 +51,19 @@ Un saludo,
 
 P. D.: Si no os interesa, respondedme con un «no» y no volveré a escribiros."""
 
-WHATSAPP = """Hola, ¿qué tal? Soy {firma_corta}.
+WHATSAPP = """Buenos días.
 
-Encontré {nombre} buscando {sector} en {ciudad}{detalle}, {problema}.
+Mi nombre es {firma_nombre}, de {firma_empresa}, un estudio de diseño web en Madrid especializado en pequeños negocios.
 
-Hago webs sencillas para negocios como el vuestro (servicios, ubicación, botón de WhatsApp, adaptada al móvil) y me encargo de todo.
+Me pongo en contacto con {nombre} porque, al buscar su negocio en Google, {problema_formal}. Hoy en día muchos clientes consultan internet antes de elegir dónde ir, y una web con sus servicios, horarios y ubicación ayuda a atraer más visitas, sobre todo de quienes aún no les conocen.
 
-{ejemplo}¿Os paso una propuesta sin compromiso? Si no os interesa, decídmelo y no vuelvo a escribir 🙂"""
+Me gustaría enviarles una cotización sin compromiso, adaptada a su negocio. {ejemplo_formal}¿Podrían indicarme a qué persona o correo electrónico puedo dirigir la propuesta?
+
+Muchas gracias por su atención. Si no les interesa, no volveré a escribirles.
+
+Un saludo cordial,
+{firma_nombre}
+{firma_empresa} · {firma_web}"""
 
 ASUNTO_SEGUIMIENTO = "Re: Una idea para {nombre}"
 
@@ -82,12 +89,24 @@ def _contexto(n: dict, cfg) -> dict:
                                    telefonos.bonito(telefonos.normalizar(cfg.firma_telefono))) if x)
     corta = " de ".join(x for x in (cfg.firma_nombre, cfg.firma_empresa) if x)
     detalle = _detalle(n)
-    problema = ("pero la web que aparece en vuestra ficha no carga" if n.get("estado_web") == "web_caida"
-                else "pero no encontré una página web propia")
+    plat = verificador.plataforma_gratuita(n.get("web_ficha") or "") or "una plataforma gratuita"
+    if n.get("estado_web") == "web_basica":
+        problema = f"aunque vuestra web está en {plat}, sin dominio propio"
+        problema_formal = (f"he visto que su página web actual está en {plat}, una plataforma gratuita "
+                           "sin dominio propio, que transmite menos profesionalidad que una web con su propio nombre")
+    elif n.get("estado_web") == "web_caida":
+        problema = "pero la web que aparece en vuestra ficha no carga"
+        problema_formal = "he visto que la página web que aparece en su ficha no carga"
+    else:
+        problema = "pero no encontré una página web propia"
+        problema_formal = "he visto que no cuenta con una página web propia"
     enlace = enlace_modelo(n.get("sector"), getattr(cfg, "modelos_url", ""))
     ejemplo = (f"Para que os hagáis una idea, aquí tenéis un ejemplo de cómo podría quedar: {enlace}\n\n"
                if enlace else "")
-    return {"ejemplo": ejemplo, "nombre": n["nombre"], "ciudad": n.get("ciudad") or "tu zona",
+    ejemplo_formal = f"Pueden ver un ejemplo de cómo podría quedar aquí:\n{enlace}\n\n" if enlace else ""
+    return {"ejemplo": ejemplo, "ejemplo_formal": ejemplo_formal, "problema_formal": problema_formal,
+            "firma_nombre": cfg.firma_nombre, "firma_empresa": cfg.firma_empresa, "firma_web": cfg.firma_web,
+            "nombre": n["nombre"], "ciudad": n.get("ciudad") or "tu zona",
             "sector": (n.get("sector") or "negocios").lower(), "detalle": detalle, "problema": problema,
             "firma": firma, "firma_corta": corta}
 

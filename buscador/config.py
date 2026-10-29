@@ -46,7 +46,7 @@ def cargar_config() -> Config:
     return Config(
         google_key=e("GOOGLE_PLACES_API_KEY", ""),
         brave_key=e("BRAVE_API_KEY", ""),
-        firma_nombre=e("FIRMA_NOMBRE", ""),
+        firma_nombre=e("FIRMA_NOMBRE", "Emiliano Mayer") or "Emiliano Mayer",
         firma_empresa=e("FIRMA_EMPRESA", "Mayer Digital"),
         firma_web=e("FIRMA_WEB", "mayerdigital.website"),
         firma_telefono=e("FIRMA_TELEFONO", ""),

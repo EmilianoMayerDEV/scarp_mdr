@@ -55,6 +55,7 @@ tr.estado-descartado,tr.estado-no_contactar{opacity:.45}
 .chip{font-family:var(--mono);font-size:11.5px;padding:3px 7px;border-radius:3px;border:1px solid var(--line);white-space:nowrap}
 .web-sin_web{color:var(--lime);border-color:#4d5c26}
 .web-web_caida{color:var(--ambar);border-color:#5e4b26}
+.web-web_basica{color:#e7a3ff;border-color:#4e3559}
 .web-posible_web{color:var(--cyan);border-color:#2a5059}
 .web-tiene_web{color:var(--dim)}
 .web-pendiente{color:var(--muted)}

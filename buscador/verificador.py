@@ -29,6 +29,13 @@ NO_PROPIOS = {
     "openstreetmap.org", "apple.com", "bing.com", "duckduckgo.com", "infoisinfo.es", "hotfrog.es",
     "vulka.es", "misterwhat.es", "top-rated.online", "cybo.com", "salonized.com", "uala.es",
 }
+# Webs hechas con plataformas gratuitas, sin dominio propio: también son clientes potenciales
+GRATUITAS = {
+    "blogspot.com": "Blogspot", "blogspot.es": "Blogspot", "wordpress.com": "WordPress.com",
+    "wixsite.com": "Wix", "sites.google.com": "Google Sites", "webnode.es": "Webnode", "webnode.com": "Webnode",
+    "jimdosite.com": "Jimdo", "jimdofree.com": "Jimdo", "weebly.com": "Weebly", "site123.me": "SITE123",
+    "negocio.site": "Google (negocio.site)", "carrd.co": "Carrd", "webcindario.com": "Webcindario",
+}
 REDES = {"facebook.com", "instagram.com", "tiktok.com", "linktr.ee"}
 BRAVE_URL = "https://api.search.brave.com/res/v1/web/search"
 UA = {"User-Agent": "Mozilla/5.0 (compatible; MayerDigital-Verificador/1.0)"}
@@ -44,6 +51,16 @@ def dominio(url: str) -> str:
 def es_no_propio(url: str) -> bool:
     d = dominio(url)
     return any(d == x or d.endswith("." + x) for x in NO_PROPIOS)
+
+
+def plataforma_gratuita(url: str) -> str | None:
+    d = dominio(url)
+    if d == "sites.google.com" or d.endswith(".sites.google.com"):
+        return "Google Sites"
+    for x, nombre in GRATUITAS.items():
+        if d == x or d.endswith("." + x):
+            return nombre
+    return None
 
 
 def es_red_social(url: str) -> bool:
@@ -128,6 +145,8 @@ def verificar(n: dict, session: requests.Session | None = None, brave_key: str =
     web = n.get("web_ficha")
 
     # 1) Web de la ficha
+    if web and (plat := plataforma_gratuita(web)):
+        return {"estado_web": "web_basica", "evidencia_web": f"Web gratuita en {plat}: {web}", "redes": redes}
     if web:
         if es_no_propio(web):
             if es_red_social(web) and web not in redes:
@@ -143,6 +162,8 @@ def verificar(n: dict, session: requests.Session | None = None, brave_key: str =
         try:
             for res in buscar_en_web(n["nombre"], n.get("ciudad") or "", brave_key, s):
                 url = res.get("url", "")
+                if (plat := plataforma_gratuita(url)) and coincide_nombre(n["nombre"], url, res.get("title", "")):
+                    return {"estado_web": "web_basica", "evidencia_web": f"Web gratuita en {plat}: {url}", "redes": redes}
                 if es_no_propio(url):
                     if es_red_social(url) and coincide_nombre(n["nombre"], url, res.get("title", "")) \
                             and url not in redes:

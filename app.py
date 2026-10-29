@@ -16,6 +16,7 @@ from buscador.trabajos import Trabajo
 VISTAS = {
     "sin_web": "Sin web",
     "web_caida": "Web caída",
+    "web_basica": "Web gratuita",
     "posible_web": "Revisar",
     "seguimiento": "Seguimiento",
     "tiene_web": "Con web",
@@ -156,7 +157,7 @@ def crear_app(cfg=None, db=None) -> Flask:
         if "notas" in d:
             campos["notas"] = d["notas"][:2000]
         if "estado_web" in d:
-            if d["estado_web"] not in ("sin_web", "tiene_web", "posible_web", "web_caida"):
+            if d["estado_web"] not in ("sin_web", "tiene_web", "posible_web", "web_caida", "web_basica"):
                 return jsonify(error="Estado de web no válido"), 400
             campos["estado_web"] = d["estado_web"]
         if campos:
