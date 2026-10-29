@@ -44,7 +44,15 @@ CREATE TABLE IF NOT EXISTS envios (
 
 # Campos que vienen de las fuentes; el resto (estado, notas...) se conserva al volver a buscar.
 CAMPOS_FUENTE = ("nombre", "direccion", "ciudad", "sector", "telefono", "email", "web_ficha",
-                 "rating", "num_resenas", "maps_url", "lat", "lon", "fuentes", "redes")
+                 "rating", "num_resenas", "maps_url", "lat", "lon", "fuentes", "redes", "place_id")
+
+# Columnas añadidas después de la primera versión (se crean solas en bases de datos antiguas)
+COLUMNAS_NUEVAS = {"place_id": "TEXT", "google_obtenido_en": "TEXT"}
+
+# Datos de Google que se borran pasados DIAS_GOOGLE (condiciones de Google Maps Platform:
+# solo el place_id se puede guardar indefinidamente)
+DIAS_GOOGLE = 30
+CAMPOS_GOOGLE_BORRAR = ("direccion", "web_ficha", "rating", "num_resenas", "maps_url", "lat", "lon")
 
 
 class DB:
@@ -54,12 +62,19 @@ class DB:
         self.con = sqlite3.connect(str(ruta), check_same_thread=False)
         self.con.row_factory = sqlite3.Row
         self.con.executescript(ESQUEMA)
+        existentes = {f[1] for f in self.con.execute("PRAGMA table_info(negocios)")}
+        with self.con:
+            for col, tipo in COLUMNAS_NUEVAS.items():
+                if col not in existentes:
+                    self.con.execute(f"ALTER TABLE negocios ADD COLUMN {col} {tipo}")
 
     # --- negocios ---
     def guardar(self, n: dict) -> bool:
         """Inserta o actualiza un negocio. Devuelve True si es nuevo."""
         datos = {k: n.get(k) for k in CAMPOS_FUENTE}
         datos["redes"] = json.dumps(n.get("redes") or [])
+        if "google" in (n.get("fuentes") or "").split(","):
+            datos["google_obtenido_en"] = datetime.now().isoformat(timespec="seconds")
         existe = self.con.execute("SELECT 1 FROM negocios WHERE id=?", (n["id"],)).fetchone()
         with self.con:
             if existe:
@@ -125,6 +140,23 @@ class DB:
             else:
                 self.con.execute("UPDATE negocios SET estado='contactado', canal=?, contactado_en=? WHERE id=?",
                                  (canal, ahora, negocio_id))
+
+    def purgar_google(self, dias: int = DIAS_GOOGLE) -> dict:
+        """Borra los datos de Google con más de `dias` días.
+
+        - Negocios que no has contactado: se eliminan (si vuelves a buscar, se recuperan actualizados).
+        - Negocios contactados, que respondieron o en «no contactar»: se conserva tu registro (nombre,
+          contacto que usaste, estado, notas y place_id) y se borran dirección, valoración, mapa, etc.
+        """
+        limite = (datetime.now() - timedelta(days=dias)).isoformat(timespec="seconds")
+        filtro = "google_obtenido_en IS NOT NULL AND google_obtenido_en < ?"
+        with self.con:
+            borrados = self.con.execute(f"DELETE FROM negocios WHERE {filtro} AND estado IN ('nuevo', 'descartado')",
+                                        (limite,)).rowcount
+            sets = ", ".join(f"{c}=NULL" for c in CAMPOS_GOOGLE_BORRAR)
+            limpiados = self.con.execute(f"UPDATE negocios SET {sets}, google_obtenido_en=NULL WHERE {filtro}",
+                                         (limite,)).rowcount
+        return {"borrados": borrados, "limpiados": limpiados}
 
     def envios_hoy(self) -> int:
         return self.con.execute("SELECT COUNT(*) FROM envios WHERE fecha >= ?",

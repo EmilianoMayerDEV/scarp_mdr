@@ -27,6 +27,7 @@ VISTAS = {
 def crear_app(cfg=None, db=None) -> Flask:
     cfg = cfg or cargar_config()
     db = db or DB(cfg.ruta_db)
+    db.purgar_google()  # condiciones de Google: sus datos no se guardan más de 30 días
     trabajo = Trabajo()
     lock = threading.Lock()
     app = Flask(__name__)

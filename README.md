@@ -97,6 +97,11 @@ Los textos de los mensajes están en `buscador/mensajes.py`.
 
 Los datos se guardan en `datos/negocios.db` (no se sube a GitHub).
 
+**Datos de Google (30 días):** las condiciones de Google Maps Platform no permiten guardar sus datos de forma
+permanente. Al abrir el panel y antes de cada búsqueda, el buscador borra lo que vino de Google hace más de 30 días:
+los negocios que no contactaste se eliminan (vuelve a buscar para tenerlos actualizados) y de los que sí contactaste
+se conserva solo tu historial (nombre, contacto usado, estado, notas e identificador de Google).
+
 ## Pruebas
 
 ```bash

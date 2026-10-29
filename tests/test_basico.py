@@ -166,3 +166,56 @@ def test_web_gratuita_blogspot(cfg):
     assert "{" not in t
     for tipo in ("sin_web", "web_caida"):
         assert "{" not in mensajes.preparar({**n, "estado_web": tipo}, cfg)["texto"]
+
+
+def test_purga_google_30_dias(tmp_path):
+    from datetime import datetime, timedelta
+    from buscador.db import DB
+    db = DB(tmp_path / "p.db")
+    base = {"ciudad": "Madrid", "sector": "bares", "direccion": "Calle X", "rating": 4.5, "num_resenas": 30,
+            "maps_url": "https://maps", "lat": 40.4, "lon": -3.7, "redes": []}
+    db.guardar({**base, "id": "g_nuevo", "nombre": "Bar A", "telefono": "+34600000001", "fuentes": "google", "place_id": "P1"})
+    db.guardar({**base, "id": "g_contactado", "nombre": "Bar B", "telefono": "+34600000002", "fuentes": "google,osm", "place_id": "P2"})
+    db.guardar({**base, "id": "g_reciente", "nombre": "Bar C", "fuentes": "google"})
+    db.guardar({**base, "id": "solo_osm", "nombre": "Bar D", "fuentes": "osm"})
+    db.registrar_envio("g_contactado", "whatsapp", "primero", "hola")
+    db.actualizar("g_contactado", notas="Llamar en enero")
+    viejo = (datetime.now() - timedelta(days=31)).isoformat(timespec="seconds")
+    db.con.execute("UPDATE negocios SET google_obtenido_en=? WHERE id IN ('g_nuevo','g_contactado')", (viejo,))
+    db.con.commit()
+
+    assert db.purgar_google() == {"borrados": 1, "limpiados": 1}
+    assert db.obtener("g_nuevo") is None
+    b = db.obtener("g_contactado")
+    assert b["nombre"] == "Bar B" and b["telefono"] == "+34600000002" and b["place_id"] == "P2"
+    assert b["estado"] == "contactado" and b["notas"] == "Llamar en enero"
+    assert b["rating"] is None and b["direccion"] is None and b["lat"] is None and b["google_obtenido_en"] is None
+    assert db.obtener("g_reciente")["rating"] == 4.5          # menos de 30 días: intacto
+    assert db.obtener("solo_osm")["direccion"] == "Calle X"    # OpenStreetMap: no se toca
+    assert db.purgar_google() == {"borrados": 0, "limpiados": 0}
+
+    # Volver a encontrarlo en Google rellena los datos y conserva tu historial
+    db.guardar({**base, "id": "g_contactado", "nombre": "Bar B", "fuentes": "google", "rating": 4.6})
+    b = db.obtener("g_contactado")
+    assert b["rating"] == 4.6 and b["estado"] == "contactado" and b["google_obtenido_en"]
+
+
+def test_migracion_bd_antigua(tmp_path):
+    import sqlite3
+    from buscador.db import DB
+    ruta = tmp_path / "vieja.db"
+    con = sqlite3.connect(ruta)
+    con.execute("CREATE TABLE negocios (id TEXT PRIMARY KEY, nombre TEXT NOT NULL, fuentes TEXT, estado TEXT DEFAULT 'nuevo', redes TEXT)")
+    con.execute("INSERT INTO negocios (id, nombre, fuentes) VALUES ('x', 'Viejo', 'osm')")
+    con.commit(); con.close()
+    db = DB(ruta)
+    cols = {f[1] for f in db.con.execute("PRAGMA table_info(negocios)")}
+    assert {"place_id", "google_obtenido_en"} <= cols
+    assert db.obtener("x")["nombre"] == "Viejo"
+
+
+def test_google_guarda_place_id():
+    s = SesionFalsa({"places.googleapis.com": Resp(json_data={"places": [
+        {"id": "ChIJabc", "displayName": {"text": "Bar Pepe"}, "nationalPhoneNumber": "612 34 56 78"}]})})
+    r = google_places.buscar("bares", "Madrid", "KEY", session=s)
+    assert r[0]["place_id"] == "ChIJabc"

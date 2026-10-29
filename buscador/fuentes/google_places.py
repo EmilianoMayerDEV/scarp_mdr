@@ -57,5 +57,6 @@ def _normalizar(p: dict) -> dict:
         "lat": loc.get("latitude"),
         "lon": loc.get("longitude"),
         "redes": [],
+        "place_id": p.get("id"),
         "fuente": "google",
     }

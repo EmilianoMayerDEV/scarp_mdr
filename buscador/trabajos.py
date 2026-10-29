@@ -70,6 +70,10 @@ class Trabajo:
         db = DB(cfg.ruta_db)
         s = requests.Session()
         try:
+            purga = db.purgar_google()
+            if purga["borrados"] or purga["limpiados"]:
+                self._log(f"Datos de Google de más de 30 días: {purga['borrados']} negocios eliminados, "
+                          f"{purga['limpiados']} limpiados (se conserva tu historial de contacto)")
             if sector:
                 self._buscar(cfg, db, s, sector, ciudad, fuentes)
             self._verificar(cfg, db)
