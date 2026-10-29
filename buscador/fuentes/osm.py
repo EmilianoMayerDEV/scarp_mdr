@@ -62,36 +62,77 @@ def buscar(sector: str, ciudad: str, max_resultados: int = 150,
     s = session or requests.Session()
     s.headers["User-Agent"] = USER_AGENT
     log(f"OpenStreetMap: buscando la ciudad «{ciudad}»…")
-    area = _area_ciudad(ciudad, s)
-    filtros = "".join(f'nwr[{e.split("=")[0]}="{e.split("=")[1]}"][name](area.a);' for e in etiquetas)
-    consulta = f"[out:json][timeout:50];area({area})->.a;({filtros});out center tags {max_resultados};"
+    lugar = _lugar(ciudad, s)
+    # Consulta por rectángulo (rápida para los servidores) y luego filtramos por el contorno real aquí
+    sur, oeste, norte, este = lugar["bbox"]
+    filtros = "".join(f'nwr["{e.split("=")[0]}"="{e.split("=")[1]}"][name];' for e in etiquetas)
+    consulta = (f"[out:json][timeout:90][bbox:{sur},{oeste},{norte},{este}];"
+                f"({filtros});out center tags {max_resultados * 3};")
     errores = []
     for servidor in OVERPASS:
         nombre = servidor.split("/")[2]
         log(f"OpenStreetMap: consultando {nombre}…")
         try:
-            r = s.post(servidor, data={"data": consulta}, timeout=(10, 60))
+            r = s.post(servidor, data={"data": consulta}, timeout=(10, 100))
         except requests.RequestException as e:
             errores.append(f"{nombre}: {type(e).__name__}")
             continue
         if r.status_code == 200:
             try:
-                return [_normalizar(el) for el in r.json().get("elements", [])]
+                elementos = r.json().get("elements", [])
             except ValueError:
                 errores.append(f"{nombre}: respuesta no válida")
                 continue
+            negocios = [_normalizar(el) for el in elementos]
+            if lugar["poligono"]:
+                negocios = [n for n in negocios if n["lat"] is None or
+                            dentro((n["lon"], n["lat"]), lugar["poligono"])]
+            return negocios[:max_resultados]
         errores.append(f"{nombre}: HTTP {r.status_code}")
     raise ErrorOSM("Los servidores de OpenStreetMap no respondieron (" + "; ".join(errores) +
-                   "). Suelen estar saturados a ratos: prueba de nuevo en unos minutos.")
+                   "). Suelen estar saturados a ratos: prueba de nuevo en unos minutos o busca una zona "
+                   "más pequeña (por ejemplo «Chamberí, Madrid»).")
 
 
-def _area_ciudad(ciudad: str, s: requests.Session) -> int:
-    r = s.get(NOMINATIM, params={"q": ciudad, "format": "json", "limit": 5, "countrycodes": "es"}, timeout=(10, 20))
+def _lugar(ciudad: str, s: requests.Session) -> dict:
+    """Rectángulo y contorno de la ciudad según Nominatim."""
+    r = s.get(NOMINATIM, params={"q": ciudad, "format": "json", "limit": 5, "countrycodes": "es",
+                                 "polygon_geojson": 1, "polygon_threshold": 0.0005}, timeout=(10, 30))
     r.raise_for_status()
-    for lugar in r.json():
-        if lugar.get("osm_type") == "relation":
-            return 3600000000 + int(lugar["osm_id"])
+    resultados = r.json()
+    # Preferimos una zona (relation: municipio, distrito, barrio…) antes que un punto
+    for lugar in sorted(resultados, key=lambda x: x.get("osm_type") != "relation"):
+        if lugar.get("boundingbox"):
+            sur, norte, oeste, este = (float(v) for v in lugar["boundingbox"])
+            geo = lugar.get("geojson") or {}
+            poligono = None
+            if geo.get("type") == "Polygon":
+                poligono = [geo["coordinates"]]
+            elif geo.get("type") == "MultiPolygon":
+                poligono = geo["coordinates"]
+            return {"bbox": (sur, oeste, norte, este), "poligono": poligono}
     raise ErrorOSM(f"No encontré la ciudad «{ciudad}» en OpenStreetMap.")
+
+
+def _en_anillo(punto, anillo) -> bool:
+    x, y = punto
+    dentro_ = False
+    j = len(anillo) - 1
+    for i in range(len(anillo)):
+        xi, yi = anillo[i][0], anillo[i][1]
+        xj, yj = anillo[j][0], anillo[j][1]
+        if (yi > y) != (yj > y) and x < (xj - xi) * (y - yi) / (yj - yi) + xi:
+            dentro_ = not dentro_
+        j = i
+    return dentro_
+
+
+def dentro(punto, poligonos) -> bool:
+    """¿El punto (lon, lat) está dentro de algún polígono (anillo exterior menos huecos)?"""
+    for anillos in poligonos:
+        if anillos and _en_anillo(punto, anillos[0]) and not any(_en_anillo(punto, h) for h in anillos[1:]):
+            return True
+    return False
 
 
 def _normalizar(el: dict) -> dict:

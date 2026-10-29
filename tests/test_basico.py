@@ -108,14 +108,30 @@ def test_dominio_inexistente_no_hace_peticion(monkeypatch):
 
 
 def test_osm_prueba_otro_servidor_si_falla():
-    nominatim = Resp(json_data=[{"osm_type": "relation", "osm_id": 5326784}])
+    # Cuadrado de Madrid simplificado: lon -3.8..-3.6, lat 40.3..40.5
+    cuadrado = [[[-3.8, 40.3], [-3.6, 40.3], [-3.6, 40.5], [-3.8, 40.5], [-3.8, 40.3]]]
+    nominatim = Resp(json_data=[{"osm_type": "relation", "osm_id": 5326784,
+                                 "boundingbox": ["40.3", "40.5", "-3.8", "-3.6"],
+                                 "geojson": {"type": "Polygon", "coordinates": cuadrado}}])
+    elementos = [{"type": "node", "id": 1, "lat": 40.4, "lon": -3.7, "tags": {"name": "Bar Pepe"}},
+                 {"type": "node", "id": 2, "lat": 40.45, "lon": -3.9, "tags": {"name": "Bar de fuera"}}]
     s = SesionFalsa({"nominatim": nominatim,
                      "overpass-api.de": Resp(504),
-                     "kumi.systems": Resp(json_data={"elements": [
-                         {"type": "node", "id": 1, "lat": 40.4, "lon": -3.7, "tags": {"name": "Bar Pepe"}}]})})
+                     "kumi.systems": Resp(json_data={"elements": elementos})})
     r = osm.buscar("bares", "Madrid", session=s, log=lambda m: None)
-    assert [n["nombre"] for n in r] == ["Bar Pepe"]
-    assert "area(3605326784)" in s.llamadas[1][1]["data"]["data"]
+    assert [n["nombre"] for n in r] == ["Bar Pepe"]  # el de fuera del contorno se descarta
+    consulta = s.llamadas[2][1]["data"]["data"]
+    assert "[bbox:40.3,-3.8,40.5,-3.6]" in consulta and "area(" not in consulta
+
+
+def test_dentro_con_huecos():
+    exterior = [[0, 0], [10, 0], [10, 10], [0, 10], [0, 0]]
+    hueco = [[4, 4], [6, 4], [6, 6], [4, 6], [4, 4]]
+    assert osm.dentro((2, 2), [[exterior, hueco]])
+    assert not osm.dentro((5, 5), [[exterior, hueco]])
+    assert not osm.dentro((12, 5), [[exterior, hueco]])
+    otra_isla = [[20, 0], [22, 0], [22, 2], [20, 2], [20, 0]]
+    assert osm.dentro((21, 1), [[exterior], [otra_isla]])
 
 
 def test_enlace_modelo(cfg):

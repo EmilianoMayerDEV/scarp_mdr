@@ -35,11 +35,12 @@ def main():
     area = {}
 
     def nominatim():
-        area["id"] = osm._area_ciudad(ciudad, s)
-        return f"ciudad «{ciudad}» -> área {area['id']}"
+        area.update(osm._lugar(ciudad, s))
+        return f"ciudad «{ciudad}» -> rectángulo {area['bbox']}"
     probar("Nominatim (buscar la ciudad)", nominatim)
     if area:
-        consulta = f'[out:json][timeout:25];area({area["id"]})->.a;nwr["shop"="hairdresser"][name](area.a);out center tags 5;'
+        sur, oeste, norte, este = area["bbox"]
+        consulta = f'[out:json][timeout:25][bbox:{sur},{oeste},{norte},{este}];nwr["shop"="hairdresser"][name];out center tags 5;'
         for servidor in osm.OVERPASS:
             def overpass(servidor=servidor):
                 r = s.post(servidor, data={"data": consulta}, timeout=(10, 40))
