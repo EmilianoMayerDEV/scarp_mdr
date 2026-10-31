@@ -163,6 +163,8 @@ def test_web_gratuita_blogspot(cfg):
     assert t.startswith("Buenos días.") and "Mi nombre es Emiliano Mayer, de Mayer Digital" in t
     assert "está en Blogspot, una plataforma gratuita" in t
     assert "https://mayerdigital.website/modelos/bares/" in t and "no volveré a escribirles" in t
+    assert "español e inglés" in t
+    assert "español e inglés" in mensajes.preparar({**n, **r, "email": "a@b.es"}, cfg)["texto"]
     assert "{" not in t
     for tipo in ("sin_web", "web_caida"):
         assert "{" not in mensajes.preparar({**n, "estado_web": tipo}, cfg)["texto"]

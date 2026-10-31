@@ -42,7 +42,7 @@ Encontré {nombre} buscando {sector} en {ciudad}{detalle}, {problema}.
 
 Hoy muchos clientes buscan en Google antes de visitar o llamar, y sin web es fácil que acaben eligiendo otro negocio que sí aparece con su información, fotos y horarios.
 
-Me dedico a crear páginas web sencillas y profesionales para negocios como el vuestro: con vuestros servicios, ubicación, botón de WhatsApp y diseño adaptado al móvil. Me encargo de todo, sin que tengáis que saber nada técnico.
+Me dedico a crear páginas web sencillas y profesionales para negocios como el vuestro: con vuestros servicios, ubicación, botón de WhatsApp y diseño adaptado al móvil, en español e inglés para llegar también a clientes extranjeros. Me encargo de todo, sin que tengáis que saber nada técnico.
 
 {ejemplo}¿Os interesaría que os prepare una propuesta sin compromiso?
 
@@ -56,6 +56,8 @@ WHATSAPP = """Buenos días.
 Mi nombre es {firma_nombre}, de {firma_empresa}, un estudio de diseño web en Madrid especializado en pequeños negocios.
 
 Me pongo en contacto con {nombre} porque, al buscar su negocio en Google, {problema_formal}. Hoy en día muchos clientes consultan internet antes de elegir dónde ir, y una web con sus servicios, horarios y ubicación ayuda a atraer más visitas, sobre todo de quienes aún no les conocen.
+
+La web puede estar en español e inglés, para que también les encuentren los clientes extranjeros y turistas.
 
 Me gustaría enviarles una cotización sin compromiso, adaptada a su negocio. {ejemplo_formal}¿Podrían indicarme a qué persona o correo electrónico puedo dirigir la propuesta?
 
